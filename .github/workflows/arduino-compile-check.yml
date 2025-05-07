@@ -1,0 +1,48 @@
+name: Arduino Compile Check
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4 # Updated to v4
+
+    - name: Setup Arduino CLI
+      uses: arduino/setup-arduino-cli@v2 # Updated to v2
+
+    - name: Install ESP32 platform
+      run: |
+        arduino-cli core update-index
+        arduino-cli core install esp32:esp32
+
+    - name: Install Sketch Libraries
+      run: |
+        # For libraries available in the Arduino Library Manager
+        arduino-cli lib install "TinyGPSPlus"
+        arduino-cli lib install "LoRa" # by Sandeep Mistry
+
+        # For the Reticulum library, it's typically not in the default index.
+        # If you were to vendor it (e.g., in a 'libraries' subdir of the sketch or project root),
+        # or if it had a known Git URL that arduino-cli could install, you'd add that here.
+        # Example (if it were a simple Git repo):
+        # arduino-cli lib install --git-url https://github.com/user/ReticulumForArduino.git
+        # For now, this workflow assumes Reticulum might be missing or needs manual setup
+        # in a real CI environment if not vendored.
+        echo "NOTE: Reticulum library installation for ESP32 may require manual steps or vendoring for CI."
+
+    - name: Compile Sketch
+      env:
+        SKETCH_PATH: src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino
+      run: |
+        # Find the FQBN for Heltec Wireless Tracker. This can vary.
+        # Try a common one, or use `arduino-cli board listall esp32:esp32` to find the exact one.
+        # FQBN_HELTEC="esp32:esp32:heltec_wifi_lora_32_V2" # Example for one Heltec board
+        FQBN_HELTEC="esp32:esp32:heltec_wireless_tracker" # From original project, may need updating
+        
+        echo "Attempting to compile with FQBN: $FQBN_HELTEC"
+        arduino-cli compile --fqbn $FQBN_HELTEC ${{ env.SKETCH_PATH }} --warnings all
+        
+        # If the above FQBN fails, you might try alternatives or make it a matrix build variable.
+        # For example, Wireless Tracker V1.1 might have a specific FQBN from the Heltec BSP.
