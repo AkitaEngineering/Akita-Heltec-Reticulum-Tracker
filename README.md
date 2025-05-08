@@ -1,10 +1,9 @@
 # Akita Engineering ESP32 Asset Tracker (Heltec V1.1) 
 
-This project, building upon and significantly enhancing the original work by Akita Engineering, provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication and the Reticulum network stack with LXMF for secure, resilient, and extended-range mesh networking. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.
+This project provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication and the Reticulum network stack with LXMF for secure, resilient, and extended-range mesh networking. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.
 
 **License:** GPLv3
 
-**Current Firmware Version (as per this README):** v1.1
 
 ## Key Features
 
