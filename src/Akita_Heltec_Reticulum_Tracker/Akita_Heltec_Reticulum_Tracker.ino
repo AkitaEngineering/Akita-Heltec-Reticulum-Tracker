@@ -31,13 +31,11 @@
 
 // Battery ADC Pin (Heltec Wireless Tracker typically uses ADC1_CH5 (GPIO13) with a voltage divider)
 #define BATT_ADC_PIN ADC1_CHANNEL_5 // GPIO13. Check your board's schematic.
-// Voltage divider parameters - YOU MUST CALIBRATE THESE FOR YOUR BOARD
-// Default Heltec values are often R1=100k, R2=100k or R1=220k, R2=100k
+#define BATT_VOLTAGE_MULTIPLIER 2.0f // Adjust based on your voltage divider and calibration
+// Voltage divider parameters - calibrate these for your board.
 // Vout = Vbat * (R2 / (R1 + R2)) => Vbat = Vout * ((R1+R2)/R2)
-// Example: R1=100k, R2=100k => Multiplier = (100+100)/100 = 2.0
-// Example: R1=220k, R2=100k => Multiplier = (220+100)/100 = 3.2
+// Example: R1=100k, R2=100k => Multiplier = 2.0
 // ADC reading to Voltage: (ADC_VALUE / 4095.0) * ADC_REFERENCE_VOLTAGE * MULTIPLIER
-#define BATT_VOLTAGE_MULTIPLIER 2.0f // !!! ADJUST BASED ON YOUR VOLTAGE DIVIDER AND CALIBRATION !!!
 #define ADC_REFERENCE_VOLTAGE 3.3f   // ESP32 ADC reference voltage (can also be calibrated if needed)
 
 
@@ -279,81 +277,8 @@ bool initializeLoRa() {
   return true;
 }
 
-// bool initializeReticulum() {
-  Serial.println("Initializing Reticulum...");
-  setLed(LedIndicatorState::ON);
-
-  // !!! CRITICAL SECTION FOR RETICULUM AND LORA !!!
-  // This section *MUST* be adapted to your specific Reticulum ESP32 library.
-  // The goal is to inform the Reticulum stack about the initialized LoRa interface
-  // so it can send and receive packets over LoRa.
-  //
-  // What to do:
-  // 1. Consult the documentation or examples of your Reticulum ESP32 library.
-  // 2. Look for functions or classes related to adding/registering hardware interfaces (like LoRa).
-  // 3. Implement the necessary calls here.
-  //
-  // Common patterns might involve:
-  //   - Creating a specific Reticulum LoRa Interface object, passing it the active 'LoRa' object or its parameters.
-  //   - Calling a function on the global 'reticulum' object like `reticulum.add_interface(my_lora_interface_object)`.
-  //   - The Reticulum library might need its main `init()` or `begin()` call *after* interfaces are added.
-  //
-  // Example (PURELY HYPOTHETICAL - API WILL VARY GREATLY):
-  /*
-  #if defined(RETICULUM_LIBRARY_HAS_LORA_INTERFACE_CLASS) // Fictional preprocessor check
-    // Assuming your library provides something like "ReticulumLoRaInterface"
-    // This is NOT standard, just an example of what such an API *might* look like.
-    // Replace "ReticulumLoRaInterface" and its constructor with actual calls.
-    static ReticulumLoRaInterface rns_lora_interface(&LoRa, loraFrequency); // Pass LoRa object, freq, etc.
-                                                                        // Static if it needs to persist
-
-    if (!reticulum.addInterface(&rns_lora_interface)) { // Hypothetical addInterface call
-      Serial.println("FATAL: Failed to add LoRa interface to Reticulum stack!");
-      setLed(LedIndicatorState::BLINK_ERROR_RNS);
-      return false;
-    }
-    Serial.println("Custom LoRa interface successfully registered with Reticulum.");
-  #else
-    // If your Reticulum library handles LoRa interface automatically after LoRa.begin()
-    // and a general reticulum.init(), this section might be minimal or empty.
-    // However, explicit interface registration is more common for flexibility.
-    Serial.println("WARNING: No explicit Reticulum LoRa interface registration code present.");
-    Serial.println("Ensure your Reticulum library auto-detects LoRa or this WILL NOT WORK.");
-  #endif
-  */
-  //
-  // A general reticulum.init() call. Its placement (before/after interface setup)
-  // also depends on your specific Reticulum library.
-  // reticulum.init(); // Or similar call to start the stack if not done implicitly.
-
-  // If the above conceptual example is not implemented correctly for YOUR library,
-  // Reticulum will NOT be able to use the LoRa radio. Packets will not be sent.
-  // THIS IS THE MOST COMMON POINT OF FAILURE FOR NETWORK COMMUNICATION.
-
-  // Load or create identity for this device
-  // The `true` argument might tell some Reticulum ports to auto-create/load from a default path
-  // or manage persistence (e.g., on SPIFFS). Check your library's behavior.
-  identity = new Reticulum::Identity(true);
-  if (identity == nullptr || !identity->isValid()) {
-    Serial.println("Error: Could not create or load Reticulum Identity.");
-    if(identity) delete identity; identity = nullptr;
-    setLed(LedIndicatorState::BLINK_ERROR_RNS);
-    return false;
-  }
-  Serial.print("Reticiculum Identity: "); Serial.println(Reticulum::prettyhex(identity->getHash(), 16));
-
-  // Create a destination for our tracker's announcements
-  destination = new Reticulum::Destination(
-    *identity,
-    Reticulum::Destination::ANNOUNCE, // Type: Announce, so others can find it
-    reticulumDestName,                // Application name (from NVS config)
-    "location",                       // Primary aspect
-    "asset_data"                      // Secondary aspect
-  );
-  Serial.println("Reticulum initialized and destination configured.");
-  setLed(LedIndicatorState::OFF);
-  return true;
-// }
+// Reticulum integration has been removed for this build; direct LoRa is used.
+// initializeReticulum() is intentionally not implemented.
 
 
 void performTrackingAction() {
