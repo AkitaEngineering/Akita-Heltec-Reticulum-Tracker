@@ -1,7 +1,7 @@
-# Reticulum LXMF Receiver Example - Enhanced
-import RNS
-import LXMF
-import time
+# LoRa Asset Tracker Receiver Example - Updated for direct LoRa transmission
+# This script assumes you have a way to receive raw LoRa packets (e.g., via another LoRa module)
+# For demonstration, it can parse raw data from a file or stdin
+
 import struct
 import argparse
 import csv
@@ -24,154 +24,92 @@ from datetime import datetime
 ASSET_DATA_FORMAT = "<ddfIIBffBBB" # Little-endian
 ASSET_DATA_SIZE = struct.calcsize(ASSET_DATA_FORMAT)
 
-DEFAULT_DESTINATION_APP_NAME = "asset_tracker" # Default if not overridden by tracker's "dest" command
-# Tracker uses "location" and "asset_data" as aspects. We listen for the app_name primarily.
-# More specific aspect filtering can be added if needed.
-
 DEFAULT_CSV_LOG_FILE = "asset_tracker_log.csv"
-IDENTITY_PATH = "receiver_identity" # Path to store receiver's RNS identity
 
 class AssetReceiver:
-    def __init__(self, rns_configdir=None, destination_app_name=None, log_file=None):
-        self.rns_configdir = rns_configdir
-        self.app_name = destination_app_name or DEFAULT_DESTINATION_APP_NAME
+    def __init__(self, log_file=None):
         self.log_file_path = log_file or DEFAULT_CSV_LOG_FILE
+        self.init_csv()
 
-        # Initialize Reticulum
-        self.reticulum = RNS.Reticulum(configdir=self.rns_configdir, loglevel=RNS.LOG_VERBOSE) # or RNS.LOG_INFO
-
-        # Create or load receiver's identity
-        if os.path.exists(IDENTITY_PATH) and RNS.Identity.validate_path(IDENTITY_PATH):
-            try:
-                self.identity = RNS.Identity.from_file(IDENTITY_PATH)
-                if self.identity is None: # from_file might return None on error
-                    raise FileNotFoundError("Identity file corrupted or unreadable.")
-                RNS.log(f"Loaded identity from {IDENTITY_PATH}", RNS.LOG_INFO)
-            except Exception as e:
-                RNS.log(f"Could not load identity from {IDENTITY_PATH}: {e}. Creating new one...", RNS.LOG_ERROR)
-                self.identity = RNS.Identity()
-                self.identity.to_file(IDENTITY_PATH)
-        else:
-            RNS.log(f"No valid identity found at {IDENTITY_PATH}, creating new one...", RNS.LOG_INFO)
-            self.identity = RNS.Identity()
-            self.identity.to_file(IDENTITY_PATH)
-
-        RNS.log(f"Receiver RNS Identity: {self.identity.hash_hex()}", RNS.LOG_INFO)
-
-        # Initialize LXMF Router with the identity
-        # Ensure storagepath for LXMRouter is valid (e.g., within .reticulum or a dedicated app dir)
-        lxmf_storage_path = None
-        if self.rns_configdir:
-            lxmf_storage_path = os.path.join(self.rns_configdir, "lxmf_storage")
-            if not os.path.exists(lxmf_storage_path):
-                os.makedirs(lxmf_storage_path, exist_ok=True)
-        elif RNS.Reticulum.configdir: # Use default if specific not provided
-             lxmf_storage_path = os.path.join(RNS.Reticulum.configdir, "lxmf_storage")
-             if not os.path.exists(lxmf_storage_path):
-                os.makedirs(lxmf_storage_path, exist_ok=True)
-
-
-        self.lxmf_router = LXMF.LXMRouter(identity=self.identity, storagepath=lxmf_storage_path)
-        RNS.log("LXMF Router initialized.", RNS.LOG_INFO)
-
-        # Create an LXMF Destination for listening
-        # This destination will match announcements for the app_name.
-        self.destination = LXMF.LXMFDestination(
-            self.identity,
-            self.lxmf_router.aspect_filter_app_name(self.app_name.encode('utf-8'))
-        )
-        # Tracker announces with "location" and "asset_data" aspects.
-        # If you need to filter specifically for one of these, you could add:
-        # self.destination.aspects.append("location".encode('utf-8'))
-
-        self.destination.set_message_callback(self.message_received_callback)
-        self.init_csv_log()
-
-        RNS.log(f"Listening for LXMF messages for App: '{self.app_name}'", RNS.LOG_INFO)
-        RNS.log(f"Receiver LXMF Destination hash: {self.destination.hash_hex()}", RNS.LOG_INFO)
-        RNS.log("Waiting for messages... Press Ctrl+C to exit.", RNS.LOG_VERBOSE)
-
-
-    def init_csv_log(self):
-        write_header = not os.path.exists(self.log_file_path) or os.path.getsize(self.log_file_path) == 0
-        try:
-            with open(self.log_file_path, 'a', newline='') as csvfile:
-                log_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                if write_header:
-                    log_writer.writerow([
-                        "rx_timestamp_utc", "source_hash", "latitude", "longitude", "altitude_m",
-                        "gps_time_utc", "gps_date_utc", "satellites", "hdop",
-                        "battery_v", "fix_status_code", "fix_status_str", "fw_major", "fw_minor", "raw_payload_hex"
-                    ])
-            RNS.log(f"Logging data to {self.log_file_path}", RNS.LOG_INFO)
-        except Exception as e:
-            RNS.log(f"Error initializing CSV log '{self.log_file_path}': {e}", RNS.LOG_ERROR)
-
-
-    def log_to_csv(self, data_dict):
-        try:
-            with open(self.log_file_path, 'a', newline='') as csvfile:
-                log_writer = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                log_writer.writerow([
-                    data_dict.get("rx_timestamp_utc"), data_dict.get("source_hash"),
-                    data_dict.get("latitude"), data_dict.get("longitude"), data_dict.get("altitude_m"),
-                    f"{data_dict.get('gps_time_utc'):08d}", f"{data_dict.get('gps_date_utc'):06d}",
-                    data_dict.get("satellites"), data_dict.get("hdop"),
-                    data_dict.get("battery_v"), data_dict.get("fix_status_code"), data_dict.get("fix_status_str"),
-                    data_dict.get("fw_major"), data_dict.get("fw_minor"),
-                    data_dict.get("raw_payload_hex")
+    def init_csv(self):
+        if not os.path.exists(self.log_file_path):
+            with open(self.log_file_path, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([
+                    'timestamp', 'latitude', 'longitude', 'altitude', 
+                    'gps_time', 'gps_date', 'satellites', 'hdop', 
+                    'battery_voltage', 'fix_status', 'fw_major', 'fw_minor'
                 ])
-        except Exception as e:
-            RNS.log(f"Error writing to CSV log '{self.log_file_path}': {e}", RNS.LOG_ERROR)
 
-    def message_received_callback(self, message):
+    def parse_asset_data(self, data):
+        if len(data) != ASSET_DATA_SIZE:
+            print(f"Invalid data size: {len(data)}, expected {ASSET_DATA_SIZE}")
+            return None
+        
         try:
-            source_hash_hex = RNS.prettyhex(message.source_hash)
-            RNS.log(f"LXMF Message received from {source_hash_hex}", RNS.LOG_VERBOSE)
-            RNS.log(f"  Title: {message.title.decode('utf-8') if message.title else 'N/A'}", RNS.LOG_DEBUG)
-            RNS.log(f"  Content size: {len(message.content)} bytes", RNS.LOG_DEBUG)
+    def parse_asset_data(self, data):
+        if len(data) != ASSET_DATA_SIZE:
+            print(f"Invalid data size: {len(data)}, expected {ASSET_DATA_SIZE}")
+            return None
+        
+        try:
+            unpacked = struct.unpack(ASSET_DATA_FORMAT, data)
+            return {
+                'latitude': unpacked[0],
+                'longitude': unpacked[1],
+                'altitude': unpacked[2],
+                'gps_time': unpacked[3],
+                'gps_date': unpacked[4],
+                'satellites': unpacked[5],
+                'hdop': unpacked[6],
+                'battery_voltage': unpacked[7],
+                'fix_status': unpacked[8],
+                'fw_major': unpacked[9],
+                'fw_minor': unpacked[10]
+            }
+        except struct.error as e:
+            print(f"Error unpacking data: {e}")
+            return None
 
-            rx_timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    def log_to_csv(self, data):
+        with open(self.log_file_path, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                datetime.now().isoformat(),
+                data['latitude'], data['longitude'], data['altitude'],
+                data['gps_time'], data['gps_date'], data['satellites'],
+                data['hdop'], data['battery_voltage'], data['fix_status'],
+                data['fw_major'], data['fw_minor']
+            ])
 
-            if len(message.content) == ASSET_DATA_SIZE:
-                # Unpack data according to the defined format
-                data = struct.unpack(ASSET_DATA_FORMAT, message.content)
-                latitude, longitude, altitude, gps_time, gps_date, satellites, \
-                hdop, battery_voltage, fix_status_raw, fw_major, fw_minor = data
+    def process_packet(self, raw_data):
+        parsed = self.parse_asset_data(raw_data)
+        if parsed:
+            print(f"Received asset data: {parsed}")
+            self.log_to_csv(parsed)
+        else:
+            print("Failed to parse asset data")
 
-                fix_status_map = {0: "NoFix", 1: "NewFix", 2: "LastKnownFix"}
-                fix_status_str = fix_status_map.get(fix_status_raw, f"Unknown({fix_status_raw})")
+def main():
+    parser = argparse.ArgumentParser(description='LoRa Asset Tracker Receiver')
+    parser.add_argument('--log-file', default=DEFAULT_CSV_LOG_FILE, help='CSV log file path')
+    parser.add_argument('--input-file', help='File containing raw packet data for testing')
+    
+    args = parser.parse_args()
+    
+    receiver = AssetReceiver(log_file=args.log_file)
+    
+    if args.input_file:
+        # Read from file for testing
+        with open(args.input_file, 'rb') as f:
+            data = f.read()
+            receiver.process_packet(data)
+    else:
+        print("No input file specified. Use --input-file to test with raw data.")
+        print("For actual LoRa reception, integrate with a LoRa library like pyLoRa.")
 
-                print("\n--- Asset Location Update ---")
-                print(f"  Received At: {rx_timestamp} UTC")
-                print(f"  Source Hash: {source_hash_hex}")
-                print(f"  Latitude:    {latitude:.6f}")
-                print(f"  Longitude:   {longitude:.6f}")
-                print(f"  Altitude:    {altitude:.1f} m")
-                print(f"  GPS Time:    {gps_time:08d} UTC (HHMMSSCC)") # Assumes tracker sends HHMMSSCC
-                print(f"  GPS Date:    {gps_date:06d} UTC (DDMMYY)")   # Assumes tracker sends DDMMYY
-                print(f"  Satellites:  {satellites}")
-                print(f"  HDOP:        {hdop:.2f}")
-                print(f"  Battery:     {battery_voltage:.2f} V")
-                print(f"  Fix Status:  {fix_status_str} (Code: {fix_status_raw})")
-                print(f"  Firmware:    v{fw_major}.{fw_minor}")
-                print("-----------------------------")
-
-                log_data = {
-                    "rx_timestamp_utc": rx_timestamp, "source_hash": source_hash_hex,
-                    "latitude": f"{latitude:.6f}", "longitude": f"{longitude:.6f}", "altitude_m": f"{altitude:.1f}",
-                    "gps_time_utc": gps_time, "gps_date_utc": gps_date,
-                    "satellites": satellites, "hdop": f"{hdop:.2f}",
-                    "battery_v": f"{battery_voltage:.2f}",
-                    "fix_status_code": fix_status_raw, "fix_status_str": fix_status_str,
-                    "fw_major": fw_major, "fw_minor": fw_minor,
-                    "raw_payload_hex": message.content.hex()
-                }
-                self.log_to_csv(log_data)
-
-            else:
-                RNS.log(f"Received message from {source_hash_hex} with unexpected content size: {len(message.content)} bytes. Expected {ASSET_DATA_SIZE}.", RNS.LOG_WARNING)
-                RNS.log(f"Raw content (hex): {message.content.hex()}", RNS.LOG_DEBUG)
+if __name__ == "__main__":
+    main()
 
         except struct.error as e:
             RNS.log(f"Error unpacking message content: {e}. Size: {len(message.content)}, Expected format: {ASSET_DATA_FORMAT}", RNS.LOG_ERROR)

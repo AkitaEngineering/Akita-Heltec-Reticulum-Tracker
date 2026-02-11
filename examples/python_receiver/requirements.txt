@@ -1,4 +1,2 @@
-rns>=0.9.0
-# No other specific dependencies for this basic script,
-# but 'pyserial' might be needed by RNS for some interface types
-# (though not directly by this receiver script if RNS handles interfaces).
+# No specific dependencies for this basic script.
+# For actual LoRa reception, you may need a LoRa library like pyLoRa or similar.

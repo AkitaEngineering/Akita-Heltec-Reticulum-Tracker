@@ -1,14 +1,13 @@
 # Akita Engineering ESP32 Asset Tracker (Heltec V1.1) 
 
-This project provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication and the Reticulum network stack with LXMF for secure, resilient, and extended-range mesh networking. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.
+This project provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.
 
 **License:** GPLv3
 
 
 ## Key Features
 
-* **Reticulum Network Integration:** Leverages Reticulum for secure, resilient, and potentially mesh-capable communication.
-* **LXMF Enabled:** Designed for extended range using Reticulum's LXMF (Link Exchange and Message Forwarding). LXMF is a feature configured on your *entire Reticulum network* (tracker, relays, receiver).
+* **LoRa Communication:** Uses direct LoRa for long-range radio transmission.
 * **Advanced Power Efficiency:**
     * Utilizes ESP32's deep sleep.
     * **Vext Control:** Manages power to external peripherals like the GPS module (user must verify board wiring).
@@ -20,7 +19,7 @@ This project provides a robust, power-efficient, and feature-rich asset tracking
     * **Fix Status:** Reports if the fix is new, if no fix was obtained, or if it's the Last Known Location (LKL).
     * **Last Known Location (LKL):** Optionally transmits the previously good location if a new fix fails.
 * **Battery Voltage Monitoring:** Reads the device's battery voltage and includes it in the data payload (requires user calibration).
-* **On-Device Configuration:** Settings (sleep interval, LoRa frequency, Reticulum destination, LKL behavior) are configurable via Serial Monitor and saved in Non-Volatile Storage (NVS).
+* **On-Device Configuration:** Settings (sleep interval, LoRa frequency, destination name, LKL behavior) are configurable via Serial Monitor and saved in Non-Volatile Storage (NVS).
 * **Firmware Version Reporting:** Transmits its firmware version in the payload.
 * **Watchdog Timer (WDT):** Implemented to improve reliability by recovering from potential software hangs.
 * **Status LED:** Provides clear visual feedback for various operational states and errors.
@@ -41,8 +40,6 @@ This project provides a robust, power-efficient, and feature-rich asset tracking
     * `TinyGPSPlus` by Mikal Hart
     * `LoRa` by Sandeep Mistry (ensure compatibility with Heltec ESP32 LoRa)
     * `Preferences` (usually included with ESP32 core)
-    * **`Reticulum` for ESP32/Arduino:** This is a **critical dependency**. You must source an ESP32/Arduino-compatible port of the Reticulum stack. This might involve manual installation from a Git repository or a ZIP file. The official Reticulum (`markqvist/Reticulum`) is for Python.
-* **Reticulum Python Package:** For the receiving device and any relay nodes: `pip install rns`
 * **Git:** For cloning this repository.
 
 ## Setup Instructions
@@ -73,12 +70,6 @@ cd Akita-Heltec-Reticulum-Tracker-Enhanced # Or your chosen directory name
 ### Install Libraries:
 
 - **Tools > Manage Libraries...**: Install `TinyGPSPlus` and `LoRa` (by Sandeep Mistry).
-- **Reticulum Library (Manual Install Often Required):**
-  - Locate a Reticulum-compatible library for ESP32.
-  - Download as ZIP or clone from GitHub.
-  - Install via **Sketch > Include Library > Add .ZIP Library...** or place manually in `Documents/Arduino/libraries/`.
-
-> The code assumes this Reticulum library is installed and API-compatible.
 
 ---
 
@@ -95,16 +86,6 @@ cd Akita-Heltec-Reticulum-Tracker-Enhanced # Or your chosen directory name
 - Open `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino` in Arduino IDE.
 - **Review Pin Definitions**: Confirm settings for `LORA_SCK`, `STATUS_LED`, `VEXT_CTRL`, `BATT_ADC_PIN`, etc.
 
-### <span style="color:red; font-weight:bold;">CRITICAL STEP: Reticulum LoRa Interface Setup</span>
-
-- Go to `initializeReticulum()` function.
-- Modify the section marked:
-  ```cpp
-  // !!! CRITICAL SECTION FOR RETICULUM AND LORA !!!
-  ```
-- Adjust this according to your Reticulum ESP32 library’s API and documentation.
-- Incorrect setup will prevent Reticulum from sending/receiving over LoRa.
-
 - Upload sketch to your Heltec device.
 
 ---
@@ -119,7 +100,7 @@ cd Akita-Heltec-Reticulum-Tracker-Enhanced # Or your chosen directory name
 ```plaintext
 sleep <seconds>         # Deep sleep interval, e.g. sleep 300
 loraFreq <frequency>    # LoRa freq, e.g. loraFreq 915000000
-dest <name>             # Reticulum app_name, e.g. dest my_tracker
+dest <name>             # Destination name, e.g. dest my_tracker
 sendLKL <0|1>           # Send Last Known Location fallback (1 = yes)
 show                    # Display current settings
 save                    # Save settings to NVS
@@ -226,7 +207,6 @@ python receiver.py --app_name your_tracker_dest_name [--log_file path/to/your.cs
 - **Fast Blink (Error)**:
   - `LORA`: Init failure.
   - `GPS`: Fix failure.
-  - `RNS`: Reticulum send/init failure.
 - **OFF**: Sleeping or idle.
 
 ---
@@ -243,10 +223,6 @@ python receiver.py --app_name your_tracker_dest_name [--log_file path/to/your.cs
   - Antenna & sky visibility.
   - VEXT usage validated?
   - GPS pins and baud rate correct?
-- **Reticulum Errors**:
-  - Check `initializeReticulum()` customization.
-  - Frequency, app name, and interface must match on both ends.
-  - Use `rnsstatus` and `rnpath` to debug connectivity.
 
 
 ## Akita Engineering

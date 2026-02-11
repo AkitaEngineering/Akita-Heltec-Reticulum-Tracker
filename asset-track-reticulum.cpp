@@ -3,11 +3,10 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <LoRa.h>
-#include <Reticulum.h>
-#include "esp_sleep.h"
+#include <esp_sleep.h>
 #include <Preferences.h>
 
-// Akita Engineering Asset Tracker with LXMF - Heltec Wireless Tracker V1.1
+// Akita Engineering Asset Tracker with LoRa
 
 #define LORA_SCK 5
 #define LORA_MISO 19
@@ -27,10 +26,6 @@ char reticulumDestAddr[] = "asset_tracker";
 
 HardwareSerial gpsSerial(1);
 TinyGPSPlus gps;
-
-Reticulum reticulum;
-Reticulum::Identity *identity;
-Reticulum::Destination *dest;
 
 struct AssetData {
   double latitude;
@@ -63,25 +58,9 @@ void setup() {
     while (true);
   }
 
-  reticulum.init();
-  identity = new Reticulum::Identity();
-  if (!identity->loadOrCreate("asset_tracker.identity")) {
-    Serial.println("Error loading or creating identity.");
-    while (true);
-  }
+  Serial.println("LoRa initialized.");
 
-  dest = new Reticulum::Destination(Reticulum::Address(reticulumDestAddr), *identity);
-
-  Serial.println("Reticulum initialized.");
-
-  esp_sleep_enable_timer_wakeup(sleepTimeSeconds * uS_TO_S_FACTOR);
-  Serial.print("Going to sleep for ");
-  Serial.print(sleepTimeSeconds);
-  Serial.println(" seconds.");
-  esp_deep_sleep_start();
-}
-
-void loop() {
+  // Perform tracking
   digitalWrite(STATUS_LED, HIGH);
 
   while (gpsSerial.available() > 0) {
@@ -98,13 +77,11 @@ void loop() {
         uint8_t serializedData[dataSize];
         memcpy(serializedData, &assetData, dataSize);
 
-        Reticulum::Packet packet(*dest, serializedData, dataSize);
-        if (reticulum.sendPacket(packet)) {
-          Serial.println("Data sent via Reticulum.");
-        } else {
-          Serial.println("Failed to send Reticulum packet.");
-        }
+        LoRa.beginPacket();
+        LoRa.write(serializedData, dataSize);
+        LoRa.endPacket();
 
+        Serial.println("Data sent via LoRa.");
         Serial.print("Latitude: ");
         Serial.println(assetData.latitude, 6);
         Serial.print("Longitude: ");
@@ -124,9 +101,14 @@ void loop() {
   }
 
   digitalWrite(STATUS_LED, LOW);
+
   esp_sleep_enable_timer_wakeup(sleepTimeSeconds * uS_TO_S_FACTOR);
   Serial.print("Going to sleep for ");
   Serial.print(sleepTimeSeconds);
   Serial.println(" seconds.");
   esp_deep_sleep_start();
+}
+
+void loop() {
+  // Should not reach here
 }

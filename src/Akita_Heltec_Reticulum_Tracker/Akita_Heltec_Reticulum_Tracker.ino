@@ -3,7 +3,7 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <LoRa.h>
-#include <Reticulum.h> // YOU MUST HAVE A COMPATIBLE RETICULUM LIBRARY FOR ESP32 INSTALLED
+// #include <Reticulum.h> // YOU MUST HAVE A COMPATIBLE RETICULUM LIBRARY FOR ESP32 INSTALLED
 #include "esp_sleep.h"
 #include <Preferences.h>
 #include "esp_wifi.h" // For disabling Wi-Fi
@@ -65,9 +65,9 @@ struct AssetData;
 AssetData lastKnownLocation; // Store LKL
 bool hasValidLKL = false;
 
-Reticulum reticulum; // Global Reticulum object or get instance from library
-Reticulum::Identity *identity = nullptr;
-Reticulum::Destination *destination = nullptr;
+// Reticulum reticulum; // Global Reticulum object or get instance from library
+// Reticulum::Identity *identity = nullptr;
+// Reticulum::Destination *destination = nullptr;
 
 enum class FixStatus : uint8_t {
   NO_FIX = 0,
@@ -102,7 +102,7 @@ void configureFromNVS();
 void saveConfiguration();
 void handleSerialConfiguration();
 bool initializeLoRa();
-bool initializeReticulum();
+// bool initializeReticulum();
 void performTrackingAction();
 void goToDeepSleep();
 void setupLed();
@@ -279,7 +279,7 @@ bool initializeLoRa() {
   return true;
 }
 
-bool initializeReticulum() {
+// bool initializeReticulum() {
   Serial.println("Initializing Reticulum...");
   setLed(LedIndicatorState::ON);
 
@@ -353,7 +353,7 @@ bool initializeReticulum() {
   Serial.println("Reticulum initialized and destination configured.");
   setLed(LedIndicatorState::OFF);
   return true;
-}
+// }
 
 
 void performTrackingAction() {
@@ -375,15 +375,15 @@ void performTrackingAction() {
   }
   esp_task_wdt_reset();
 
-  // 2. Initialize Reticulum (critically depends on LoRa being up AND RNS knowing about it)
-  if (!initializeReticulum()) {
-    setLed(LedIndicatorState::BLINK_ERROR_RNS);
-    Serial.println("Skipping tracking due to Reticulum failure.");
-    LoRa.sleep(); // Sleep LoRa module if RNS failed but LoRa init was ok
-    controlPeripherals(false);
-    return;
-  }
-  esp_task_wdt_reset();
+  // 2. Initialize Reticulum (commented out since not used for sending)
+  // if (!initializeReticulum()) {
+  //   setLed(LedIndicatorState::BLINK_ERROR_RNS);
+  //   Serial.println("Skipping tracking due to Reticulum failure.");
+  //   LoRa.sleep(); // Sleep LoRa module if RNS failed but LoRa init was ok
+  //   controlPeripherals(false);
+  //   return;
+  // }
+  // esp_task_wdt_reset();
 
   // 3. Acquire GPS Data
   Serial.println("Acquiring GPS fix (timeout: " + String(GPS_FIX_TIMEOUT_MS / 1000) + "s)...");
@@ -485,25 +485,22 @@ void performTrackingAction() {
     Serial.print("  FixStatus: "); Serial.println(dataToSend.fix_status);
     Serial.print("  FW Ver: "); Serial.print(dataToSend.firmware_version_major); Serial.print("."); Serial.println(dataToSend.firmware_version_minor);
 
-    setLed(LedIndicatorState::ON); // Solid LED during LoRa/RNS transmission
-    // Create and send the LXMF message
-    Reticulum::Message lxmf_message(destination, (uint8_t*)&dataToSend, sizeof(AssetData));
+    setLed(LedIndicatorState::ON); // Solid LED during LoRa transmission
+    // Send the data via LoRa
+    LoRa.beginPacket();
+    LoRa.write((uint8_t*)&dataToSend, sizeof(AssetData));
+    LoRa.endPacket();
 
-    if (lxmf_message.send()) {
-      Serial.println("LXMF Message sent successfully via Reticulum.");
-      setLed(LedIndicatorState::BLINK_SUCCESS);
-    } else {
-      Serial.println("Failed to send LXMF Message via Reticulum.");
-      setLed(LedIndicatorState::BLINK_ERROR_RNS); // More specific RNS send error
-    }
+    Serial.println("Data sent successfully via LoRa.");
+    setLed(LedIndicatorState::BLINK_SUCCESS);
   }
 
   // 5. Cleanup Reticulum objects (if dynamically allocated and need explicit release before sleep)
   // Depending on the Reticulum library, these might be managed internally or require deletion.
   // Deleting and re-creating them on each wake cycle (as done by calling initializeReticulum again)
   // is a safe approach if their state doesn't persist well across deep sleep.
-  if (destination) { delete destination; destination = nullptr; }
-  if (identity) { delete identity; identity = nullptr; }
+  // if (destination) { delete destination; destination = nullptr; }
+  // if (identity) { delete identity; identity = nullptr; }
   // The global 'reticulum' object's state across deep sleep is library-dependent.
 
   // 6. Sleep LoRa module
