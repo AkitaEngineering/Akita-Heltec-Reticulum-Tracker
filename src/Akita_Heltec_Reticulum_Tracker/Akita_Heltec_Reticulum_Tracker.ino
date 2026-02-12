@@ -3,7 +3,17 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <LoRa.h>
-// #include <Reticulum.h> // YOU MUST HAVE A COMPATIBLE RETICULUM LIBRARY FOR ESP32 INSTALLED
+
+// Optional: enable Reticulum integration by setting USE_RETICULUM to 1.
+// When enabled the build requires an ESP32/Arduino-compatible Reticulum port
+// installed and the code will attempt to register a LoRa interface with it.
+#ifndef USE_RETICULUM
+#define USE_RETICULUM 0
+#endif
+
+#if USE_RETICULUM
+#include <Reticulum.h> // Requires a Reticulum ESP32/Arduino port
+#endif
 #include "esp_sleep.h"
 #include <Preferences.h>
 #include "esp_wifi.h" // For disabling Wi-Fi
@@ -63,9 +73,11 @@ struct AssetData;
 AssetData lastKnownLocation; // Store LKL
 bool hasValidLKL = false;
 
-// Reticulum reticulum; // Global Reticulum object or get instance from library
-// Reticulum::Identity *identity = nullptr;
-// Reticulum::Destination *destination = nullptr;
+#if USE_RETICULUM
+Reticulum reticulum; // Global Reticulum object or get instance from library
+Reticulum::Identity *identity = nullptr;
+Reticulum::Destination *destination = nullptr;
+#endif
 
 enum class FixStatus : uint8_t {
   NO_FIX = 0,
@@ -100,7 +112,7 @@ void configureFromNVS();
 void saveConfiguration();
 void handleSerialConfiguration();
 bool initializeLoRa();
-// bool initializeReticulum();
+bool initializeReticulum();
 void performTrackingAction();
 void goToDeepSleep();
 void setupLed();
@@ -277,8 +289,53 @@ bool initializeLoRa() {
   return true;
 }
 
-// Reticulum integration has been removed for this build; direct LoRa is used.
-// initializeReticulum() is intentionally not implemented.
+// Reticulum integration support. If USE_RETICULUM is 1 the block below
+// will attempt to initialize Reticulum, load/create identity and destination.
+// If disabled (default) a lightweight stub is provided so the rest of the
+// firmware can run using direct LoRa.
+#if USE_RETICULUM
+bool initializeReticulum() {
+  Serial.println("Initializing Reticulum...");
+  setLed(LedIndicatorState::ON);
+
+  // NOTE: This section is highly dependent on the Reticulum ESP32/Arduino
+  // port you install. The code below is a best-effort template and may
+  // require adapting to the library you add to your Arduino libraries.
+
+  // Example of what many ports expect (pseudo-code):
+  //  - create/load identity
+  //  - register a LoRa interface (if required by port)
+  //  - call reticulum.init() or equivalent
+
+  // Create or load identity (API may vary)
+  identity = new Reticulum::Identity(true);
+  if (identity == nullptr || !identity->isValid()) {
+    Serial.println("Error: Could not create or load Reticulum Identity.");
+    if(identity) { delete identity; identity = nullptr; }
+    setLed(LedIndicatorState::BLINK_ERROR_GPS);
+    return false;
+  }
+
+  // Create a destination for announcements (API may vary)
+  destination = new Reticulum::Destination(
+    *identity,
+    Reticulum::Destination::ANNOUNCE,
+    reticulumDestName,
+    "location",
+    "asset_data"
+  );
+
+  Serial.println("Reticulum initialized (template). Verify API compatibility.");
+  setLed(LedIndicatorState::OFF);
+  return true;
+}
+#else
+// Stub when Reticulum is not enabled; return true so caller proceeds normally.
+bool initializeReticulum() {
+  // No-op when Reticulum disabled; direct LoRa path is used instead.
+  return true;
+}
+#endif
 
 
 void performTrackingAction() {
@@ -300,14 +357,16 @@ void performTrackingAction() {
   }
   esp_task_wdt_reset();
 
-  // 2. Initialize Reticulum (commented out since not used for sending)
-  // if (!initializeReticulum()) {
-  //   setLed(LedIndicatorState::BLINK_ERROR_RNS);
-  //   Serial.println("Skipping tracking due to Reticulum failure.");
-  //   LoRa.sleep(); // Sleep LoRa module if RNS failed but LoRa init was ok
-  //   controlPeripherals(false);
-  //   return;
-  // }
+  // 2. Optionally initialize Reticulum (if compiled with USE_RETICULUM=1)
+#if USE_RETICULUM
+  if (!initializeReticulum()) {
+    setLed(LedIndicatorState::BLINK_ERROR_GPS);
+    Serial.println("Skipping tracking due to Reticulum failure.");
+    LoRa.sleep(); // Sleep LoRa module if RNS failed but LoRa init was ok
+    controlPeripherals(false);
+    return;
+  }
+#endif
   // esp_task_wdt_reset();
 
   // 3. Acquire GPS Data

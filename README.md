@@ -1,3 +1,55 @@
+### Optional: Enabling Reticulum / RNS Integration
+This repository defaults to direct LoRa transmissions. If you want to integrate
+with Reticulum (RNS) or an Arduino/ESP32 port of the Reticulum stack, follow
+these steps:
+1. Install a Reticulum ESP32/Arduino-compatible port into your Arduino
+  libraries (the official Reticulum project is Python-only; look for an
+  ESP32/Arduino port or a community-maintained wrapper).
+2. Open `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino`.
+3. Set `USE_RETICULUM` to `1` near the top of the file (default is 0):
+
+```cpp
+// Enable Reticulum integration (requires compatible Reticulum port)
+#define USE_RETICULUM 1
+```
+
+4. Review and adapt the `initializeReticulum()` function in the same file.
+  The firmware includes a template that:
+  - Loads/creates an identity
+  - Creates a destination for announcements
+
+  You will likely need to add code to register a LoRa interface with the
+  Reticulum stack (API varies by port). Search for `initializeReticulum()`
+  in the file to find the template and adapt it to your Reticulum library.
+
+5. Rebuild and flash the sketch. If the Reticulum port requires additional
+  setup (files, storage paths, or persistent keys), follow that library's
+  documentation.
+
+Notes:
+- The code includes a compile-time `USE_RETICULUM` switch so you can keep
+  the direct-LoRa flow intact while enabling Reticulum only when you have a
+  compatible library installed.
+- If you prefer RNS (Python) on the receiver side, use a separate receiver
+  running Reticulum Python and set up relays/routers as needed.
+
+Example: registering a LoRa interface (template)
+
+If your Reticulum port exposes a LoRa interface class, you might add code
+similar to the following inside `initializeReticulum()` (this is a
+template—replace types and calls with your port's API):
+
+```cpp
+#if defined(RETICULUM_HAS_LORA_INTERFACE)
+  static ReticulumLoRaInterface rns_lora_interface(&LoRa, loraFrequency);
+  if (!reticulum.addInterface(&rns_lora_interface)) {
+    Serial.println("FATAL: Failed to add LoRa interface to Reticulum stack!");
+    return false;
+  }
+#endif
+```
+
+For convenience a guarded template file is included at `src/reticulum_lora_adapter.h`.
 # Akita Engineering ESP32 Asset Tracker (Heltec V1.1) 
 
 This project provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.

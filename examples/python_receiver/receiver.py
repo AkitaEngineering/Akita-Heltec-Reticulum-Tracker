@@ -13,7 +13,7 @@ import struct
 import argparse
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Matches C++ struct layout in the tracker firmware
 ASSET_DATA_FORMAT = "<ddfIIBffBBB"  # little-endian
@@ -61,10 +61,12 @@ class AssetReceiver:
             return None
 
     def log_to_csv(self, parsed: dict):
+        # Use timezone-aware UTC timestamps
+        ts = datetime.now(timezone.utc).isoformat()
         with open(self.log_file_path, "a", newline="") as f:
             w = csv.writer(f)
             w.writerow([
-                datetime.utcnow().isoformat(),
+                ts,
                 parsed["latitude"], parsed["longitude"], parsed["altitude"],
                 parsed["gps_time"], parsed["gps_date"], parsed["satellites"], parsed["hdop"],
                 parsed["battery_voltage"], parsed["fix_status"], parsed["fw_major"], parsed["fw_minor"]
@@ -75,6 +77,7 @@ def main():
     p = argparse.ArgumentParser(description="Parse raw AssetData packet payload")
     p.add_argument("--input-file", required=True, help="Binary file containing raw payload to parse")
     p.add_argument("--log-file", default=DEFAULT_CSV_LOG_FILE, help="CSV output file")
+    p.add_argument("--verbose", action="store_true", help="Enable verbose output")
     args = p.parse_args()
 
     r = AssetReceiver(log_file=args.log_file)
@@ -82,8 +85,11 @@ def main():
         payload = f.read()
     parsed = r.parse_asset_data(payload)
     if parsed:
-        print("Parsed:", parsed)
+        if args.verbose:
+            print("Parsed:", parsed)
         r.log_to_csv(parsed)
+        if args.verbose:
+            print(f"Logged to {args.log_file}")
     else:
         print("Failed to parse payload")
 
