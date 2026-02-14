@@ -119,6 +119,22 @@ cd Akita-Heltec-Reticulum-Tracker-Enhanced # Or your chosen directory name
 - Go to **Tools > Board > ESP32 Arduino > Heltec Wireless Tracker** (or the closest match for your board).
 - Select the correct **Port**.
 
+### Alternative Boards (nRF52840 / RAK4631)
+
+- This project defaults to Heltec (ESP32). Basic compile-time support for
+  nRF52840 and RAK4631 has been added. These targets use more generic pin
+  defaults and do not provide full ESP32-specific power-management parity.
+- To build for one of these boards, select the corresponding board in your
+  IDE (e.g., nRF52840 core or RAK BSP) and add a build flag to select the
+  pin profile: `-DBOARD_RAK4631` or `-DBOARD_NRF52840`.
+- Verify and, if necessary, override pin defines in
+  `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino`:
+  `LORA_SCK`, `LORA_MISO`, `LORA_MOSI`, `LORA_CS`, `LORA_RST`, `LORA_IRQ`,
+  `STATUS_LED`, and `BATT_ADC_PIN`.
+- Note: deep-sleep and ESP32-specific APIs are stubbed on non-ESP builds;
+  adapt these stubs if you require precise low-power behavior on the
+  target MCU.
+
 ### Install Libraries:
 
 - **Tools > Manage Libraries...**: Install `TinyGPSPlus` and `LoRa` (by Sandeep Mistry).

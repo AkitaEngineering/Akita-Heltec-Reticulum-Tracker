@@ -3,20 +3,45 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <LoRa.h>
-#include <esp_sleep.h>
-#include <Preferences.h>
+
+#if defined(ESP32)
+  #include <esp_sleep.h>
+  #include <Preferences.h>
+#else
+  // Minimal Preferences stub for non-ESP builds (non-persistent)
+  class Preferences {
+  public:
+    void begin(const char*, bool) {}
+    void end() {}
+    unsigned int getUInt(const char*, unsigned int def) { return def; }
+    unsigned int getULong(const char*, unsigned int def) { return def; }
+    void getString(const char*, char* out, size_t len) { if(len>0) out[0]='\0'; }
+  };
+#endif
 
 // Akita Engineering Asset Tracker with LoRa
 
-#define LORA_SCK 5
-#define LORA_MISO 19
-#define LORA_MOSI 27
-#define LORA_CS 18
-#define LORA_RST 14
-#define LORA_IRQ 26
-#define GPS_RX 16
-#define GPS_TX 17
-#define STATUS_LED 2
+#if defined(BOARD_RAK4631) || defined(BOARD_NRF52840)
+  #define LORA_SCK 13
+  #define LORA_MISO 12
+  #define LORA_MOSI 11
+  #define LORA_CS 10
+  #define LORA_RST 9
+  #define LORA_IRQ 2
+  #define GPS_RX 8
+  #define GPS_TX 9
+  #define STATUS_LED LED_BUILTIN
+#else
+  #define LORA_SCK 5
+  #define LORA_MISO 19
+  #define LORA_MOSI 27
+  #define LORA_CS 18
+  #define LORA_RST 14
+  #define LORA_IRQ 26
+  #define GPS_RX 16
+  #define GPS_TX 17
+  #define STATUS_LED 2
+#endif
 #define uS_TO_S_FACTOR 1000000ULL
 
 Preferences preferences;

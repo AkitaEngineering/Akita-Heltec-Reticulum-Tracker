@@ -1,0 +1,31 @@
+F:\Code\Akita-Heltec-Reticulum-Tracker\arduino_build\core\wiring.c.o: \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino\wiring.c \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\variants\arduino_primo/variant.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino/WVariant.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/drivers_nrf/hal/nrf_saadc.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/nrf.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/nrf52.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\tools\CMSIS\4.5.0/CMSIS/Include/core_cm4.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\tools\CMSIS\4.5.0/CMSIS/Include/core_cmInstr.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\tools\CMSIS\4.5.0/CMSIS/Include/cmsis_gcc.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\tools\CMSIS\4.5.0/CMSIS/Include/core_cmFunc.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\tools\CMSIS\4.5.0/CMSIS/Include/core_cmSimd.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/toolchain/system_nrf52.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/nrf52_bitfields.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/nrf51_to_nrf52.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/nrf52_name_change.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/compiler_abstraction.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/nrf_assert.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/app_error.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/sdk_errors.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/softdevice/s132/headers/nrf_error.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/nordic_common.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/nrf_log.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/app_util.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/device/compiler_abstraction.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/libraries/util/app_error_weak.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2/cores/arduino/components/drivers_nrf/hal/nrf_lpcomp.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino/syscalls.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino\wiring_digital.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino\WVariant.h \
+ C:\Users\shaun\AppData\Local\Arduino15\packages\arduino\hardware\nrf52\1.0.2\cores\arduino\wiring.h

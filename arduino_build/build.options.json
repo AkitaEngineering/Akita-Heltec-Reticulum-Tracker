@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "..\\..,..\\..",
+  "compiler.optimization_flags": "",
+  "customBuildProperties": "",
+  "fqbn": "arduino:nrf52:primo",
+  "hardwareFolders": "C:\\Users\\shaun\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\nrf52\\1.0.2,C:\\Users\\shaun\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\nrf52\\1.0.2",
+  "otherLibrariesFolders": "C:\\Users\\shaun\\OneDrive\\Documents\\Arduino\\libraries",
+  "sketchLocation": "F:\\Code\\Akita-Heltec-Reticulum-Tracker\\src\\Akita_Heltec_Reticulum_Tracker"
+}
