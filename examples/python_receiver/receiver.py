@@ -15,9 +15,14 @@ import csv
 import os
 from datetime import datetime, timezone
 
-# Matches C++ struct layout in the tracker firmware
-ASSET_DATA_FORMAT = "<ddfIIBffBBB"  # little-endian
+# Canonical packet format emitted by the current firmware serializer.
+ASSET_DATA_FORMAT = "<ddfIIBffBBB"  # little-endian, 40 bytes
 ASSET_DATA_SIZE = struct.calcsize(ASSET_DATA_FORMAT)
+
+# Older firmware revisions wrote the in-memory C struct directly, which can add
+# compiler padding before `hdop` and at the end of the packet on 32-bit targets.
+LEGACY_ASSET_DATA_FORMAT = "<ddfIIB3xffBBBx"
+LEGACY_ASSET_DATA_SIZE = struct.calcsize(LEGACY_ASSET_DATA_FORMAT)
 
 DEFAULT_CSV_LOG_FILE = "asset_tracker_log.csv"
 
@@ -38,11 +43,18 @@ class AssetReceiver:
                 ])
 
     def parse_asset_data(self, data: bytes):
-        if len(data) != ASSET_DATA_SIZE:
-            print(f"Invalid data length: {len(data)} (expected {ASSET_DATA_SIZE})")
+        if len(data) == ASSET_DATA_SIZE:
+            packet_format = ASSET_DATA_FORMAT
+        elif len(data) == LEGACY_ASSET_DATA_SIZE:
+            packet_format = LEGACY_ASSET_DATA_FORMAT
+        else:
+            print(
+                f"Invalid data length: {len(data)} "
+                f"(expected {ASSET_DATA_SIZE} or legacy {LEGACY_ASSET_DATA_SIZE})"
+            )
             return None
         try:
-            unpacked = struct.unpack(ASSET_DATA_FORMAT, data)
+            unpacked = struct.unpack(packet_format, data)
             return {
                 "latitude": unpacked[0],
                 "longitude": unpacked[1],

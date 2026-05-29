@@ -1,182 +1,125 @@
-### Optional: Enabling Reticulum / RNS Integration
-This repository defaults to direct LoRa transmissions. If you want to integrate
-with Reticulum (RNS) or an Arduino/ESP32 port of the Reticulum stack, follow
-these steps:
-1. Install a Reticulum ESP32/Arduino-compatible port into your Arduino
-  libraries (the official Reticulum project is Python-only; look for an
-  ESP32/Arduino port or a community-maintained wrapper).
-2. Open `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino`.
-3. Set `USE_RETICULUM` to `1` near the top of the file (default is 0):
+# Akita Engineering Asset Tracker
 
-```cpp
-// Enable Reticulum integration (requires compatible Reticulum port)
-#define USE_RETICULUM 1
-```
+Arduino-based GPS asset tracker firmware for the Heltec Wireless Tracker V1.1.
+The default data path is direct LoRa transmission of a compact binary payload.
+Optional Reticulum integration remains available as a compile-time template, but
+it is not enabled or bundled by default.
 
-4. Review and adapt the `initializeReticulum()` function in the same file.
-  The firmware includes a template that:
-  - Loads/creates an identity
-  - Creates a destination for announcements
+## Current Status
 
-  You will likely need to add code to register a LoRa interface with the
-  Reticulum stack (API varies by port). Search for `initializeReticulum()`
-  in the file to find the template and adapt it to your Reticulum library.
+- Maintained target: Arduino core on ESP32 using `esp32:esp32:heltec_wireless_tracker`.
+- Default transport: direct LoRa, 40-byte little-endian `AssetData` packet.
+- Optional Reticulum mode: template only, requires a compatible third-party port.
+- Example Python receiver: offline packet parser for captured payloads, not a live radio driver.
 
-5. Rebuild and flash the sketch. If the Reticulum port requires additional
-  setup (files, storage paths, or persistent keys), follow that library's
-  documentation.
-
-Notes:
-- The code includes a compile-time `USE_RETICULUM` switch so you can keep
-  the direct-LoRa flow intact while enabling Reticulum only when you have a
-  compatible library installed.
-- If you prefer RNS (Python) on the receiver side, use a separate receiver
-  running Reticulum Python and set up relays/routers as needed.
-
-Example: registering a LoRa interface (template)
-
-If your Reticulum port exposes a LoRa interface class, you might add code
-similar to the following inside `initializeReticulum()` (this is a
-template—replace types and calls with your port's API):
-
-```cpp
-#if defined(RETICULUM_HAS_LORA_INTERFACE)
-  static ReticulumLoRaInterface rns_lora_interface(&LoRa, loraFrequency);
-  if (!reticulum.addInterface(&rns_lora_interface)) {
-    Serial.println("FATAL: Failed to add LoRa interface to Reticulum stack!");
-    return false;
-  }
-#endif
-```
-
-For convenience a guarded template file is included at `src/reticulum_lora_adapter.h`.
-# Akita Engineering ESP32 Asset Tracker (Heltec V1.1) 
-
-This project provides a robust, power-efficient, and feature-rich asset tracking solution for the Heltec Wireless Tracker V1.1. It utilizes LoRa for long-range communication. The device transmits GPS location data, incorporates advanced power management for prolonged battery life, and offers enhanced data payloads.
-
-**License:** GPLv3
-
+See [deployment.md](deployment.md) for a deployment checklist and
+[USE_CASES.md](USE_CASES.md) for scenarios this firmware fits well.
 
 ## Key Features
 
-* **LoRa Communication:** Uses direct LoRa for long-range radio transmission.
-* **Advanced Power Efficiency:**
-    * Utilizes ESP32's deep sleep.
-    * **Vext Control:** Manages power to external peripherals like the GPS module (user must verify board wiring).
-    * **LoRa Module Sleep:** Puts the LoRa radio into low-power mode before deep sleep.
-    * **Wi-Fi & Bluetooth Disable:** Explicitly turns off unused radios.
-* **Enhanced GPS Data & Handling:**
-    * Acquires latitude, longitude, altitude, UTC timestamp, and satellite count.
-    * **HDOP (Horizontal Dilution of Precision):** Included for a better assessment of GPS fix accuracy.
-    * **Fix Status:** Reports if the fix is new, if no fix was obtained, or if it's the Last Known Location (LKL).
-    * **Last Known Location (LKL):** Optionally transmits the previously good location if a new fix fails.
-* **Battery Voltage Monitoring:** Reads the device's battery voltage and includes it in the data payload (requires user calibration).
-* **On-Device Configuration:** Settings (sleep interval, LoRa frequency, destination name, LKL behavior) are configurable via Serial Monitor and saved in Non-Volatile Storage (NVS).
-* **Firmware Version Reporting:** Transmits its firmware version in the payload.
-* **Watchdog Timer (WDT):** Implemented to improve reliability by recovering from potential software hangs.
-* **Status LED:** Provides clear visual feedback for various operational states and errors.
-* **Enhanced Python Receiver:** Example script now includes CSV data logging.
+- GPS fix acquisition with latitude, longitude, altitude, UTC time, UTC date, satellite count, and HDOP.
+- Last Known Location fallback when a new GPS fix cannot be obtained.
+- Battery voltage sampling and inclusion in the transmitted payload.
+- Persistent configuration in NVS for sleep interval, LoRa frequency, destination name, and LKL behavior.
+- ESP32 watchdog, LoRa sleep, Wi-Fi disable, Bluetooth disable, and VEXT power control.
+- Direct binary payload format shared with the example Python parser.
+- Basic compile-time support for nRF52840 and RAK4631 with conservative stubs for ESP32-specific features.
 
 ## Hardware Requirements
 
-* Heltec Wireless Tracker V1.1 (ensure your version matches pinouts, especially for Vext and Battery ADC).
-* Suitable LoRa Antenna (matched to your configured frequency).
-* USB cable for programming and serial communication.
-* (Optional but Recommended) Multimeter for battery voltage calibration.
+- Heltec Wireless Tracker V1.1 or a closely compatible ESP32 LoRa tracker board.
+- Suitable LoRa antenna for the selected frequency.
+- GPS antenna with reasonable sky visibility.
+- USB cable for flashing and serial configuration.
+- Multimeter if you want to calibrate battery readings.
 
 ## Software Requirements
 
-* **Arduino IDE:** Latest version recommended.
-* **ESP32 Board Support for Arduino IDE:** Install via Boards Manager.
-* **Arduino Libraries (Install via Library Manager or manually):**
-    * `TinyGPSPlus` by Mikal Hart
-    * `LoRa` by Sandeep Mistry (ensure compatibility with Heltec ESP32 LoRa)
-    * `Preferences` (usually included with ESP32 core)
-* **Git:** For cloning this repository.
+- Arduino IDE or `arduino-cli`.
+- ESP32 Arduino core.
+- Arduino libraries:
+  - `TinyGPSPlus`
+  - `LoRa` by Sandeep Mistry
+- Python 3 if you want to use the example packet parser.
 
-## Setup Instructions
+## Quick Start
 
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/AkitaEngineering/Akita-Heltec-Reticulum-Tracker
-cd Akita-Heltec-Reticulum-Tracker-Enhanced # Or your chosen directory name
-```
-## 2. Arduino IDE Setup
-
-### Install Arduino IDE and ESP32 Core:
-
-- Download from [arduino.cc](https://www.arduino.cc).
-- Add ESP32 package URL to **File > Preferences > Additional Boards Manager URLs**:
-  ```
-  https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-  ```
-- Install "esp32" via **Tools > Board > Boards Manager...**.
-
-### Select Board:
-
-- Connect your Heltec Wireless Tracker.
-- Go to **Tools > Board > ESP32 Arduino > Heltec Wireless Tracker** (or the closest match for your board).
-- Select the correct **Port**.
-
-### Alternative Boards (nRF52840 / RAK4631)
-
-- This project defaults to Heltec (ESP32). Basic compile-time support for
-  nRF52840 and RAK4631 has been added. These targets use more generic pin
-  defaults and do not provide full ESP32-specific power-management parity.
-- To build for one of these boards, select the corresponding board in your
-  IDE (e.g., nRF52840 core or RAK BSP) and add a build flag to select the
-  pin profile: `-DBOARD_RAK4631` or `-DBOARD_NRF52840`.
-- Verify and, if necessary, override pin defines in
-  `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino`:
-  `LORA_SCK`, `LORA_MISO`, `LORA_MOSI`, `LORA_CS`, `LORA_RST`, `LORA_IRQ`,
-  `STATUS_LED`, and `BATT_ADC_PIN`.
-- Note: deep-sleep and ESP32-specific APIs are stubbed on non-ESP builds;
-  adapt these stubs if you require precise low-power behavior on the
-  target MCU.
-
-### Install Libraries:
-
-- **Tools > Manage Libraries...**: Install `TinyGPSPlus` and `LoRa` (by Sandeep Mistry).
-
----
-
-## 3. Hardware Configuration & Verification
-
-- **Antenna**: Connect LoRa antenna securely.
-- **Vext for GPS (GPIO21)**: Check if GPS is powered via `VEXT_CTRL (GPIO21)` on your board.
-- **Battery ADC Pin (GPIO13)**: Ensure the firmware pin matches your board; calibrate voltage reading (see *Battery Voltage Calibration* section).
-
----
-
-## 4. Code Upload & Critical Firmware Modification
-
-- Open `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino` in Arduino IDE.
-- **Review Pin Definitions**: Confirm settings for `LORA_SCK`, `STATUS_LED`, `VEXT_CTRL`, `BATT_ADC_PIN`, etc.
-
-- Upload sketch to your Heltec device.
-
----
-
-## 5. Device Configuration (via Serial Monitor)
-
-- Open **Tools > Serial Monitor**, set baud rate to `115200`.
-- Reset device and type `config` within 10 seconds.
-
-### Available Commands:
-
-```plaintext
-sleep <seconds>         # Deep sleep interval, e.g. sleep 300
-loraFreq <frequency>    # LoRa freq, e.g. loraFreq 915000000
-dest <name>             # Destination name, e.g. dest my_tracker
-sendLKL <0|1>           # Send Last Known Location fallback (1 = yes)
-show                    # Display current settings
-save                    # Save settings to NVS
-reboot                  # Reboot the device
+cd Akita-Heltec-Reticulum-Tracker
 ```
 
-### Example:
-```plaintext
+### 2. Install Arduino dependencies
+
+Using `arduino-cli`:
+
+```bash
+arduino-cli core update-index
+arduino-cli core install esp32:esp32
+arduino-cli lib install "TinyGPSPlus"
+arduino-cli lib install "LoRa"
+```
+
+Using Arduino IDE:
+
+- Install the `esp32` platform from Boards Manager.
+- Install `TinyGPSPlus` and `LoRa` from Library Manager.
+- Select `Heltec Wireless Tracker` as the board when available.
+
+### 3. Review board-specific defaults
+
+The Arduino sketch entry point is
+`src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino`, but the
+actual firmware configuration lives in
+`src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.cpp`.
+
+Important Heltec defaults:
+
+- `GPS_RX 16`
+- `GPS_TX 17`
+- `STATUS_LED 25`
+- `VEXT_CTRL 21`
+- `BATT_ADC_GPIO 13`
+- `LORA_SCK 5`, `LORA_MISO 19`, `LORA_MOSI 27`, `LORA_CS 18`, `LORA_RST 14`, `LORA_IRQ 26`
+
+If you build for a non-Heltec board, review and override those values first.
+
+### 4. Build and flash
+
+Verified build command:
+
+```bash
+arduino-cli compile \
+  --fqbn esp32:esp32:heltec_wireless_tracker \
+  src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.ino \
+  --warnings all
+```
+
+Flash with your normal Arduino IDE upload flow or the matching `arduino-cli`
+upload command for your serial port.
+
+### 5. Configure at runtime
+
+Open the serial monitor at `115200` baud, reset the board, and type `config`
+within 10 seconds.
+
+Available commands:
+
+```text
+sleep <seconds>
+loraFreq <frequency>
+dest <name>
+sendLKL <0|1>
+show
+save
+reboot
+```
+
+Example session:
+
+```text
 config
 loraFreq 915000000
 sleep 180
@@ -186,117 +129,123 @@ save
 reboot
 ```
 
----
+## Runtime Flow
 
-## 6. Reticulum Network Configuration (Relays & Receiver)
+1. Boot and start the watchdog.
+2. Allow a short serial window for configuration mode.
+3. Power GPS and related peripherals through VEXT if configured.
+4. Read battery voltage.
+5. Initialize LoRa.
+6. Attempt GPS acquisition until timeout or acceptable fix quality.
+7. Serialize and send a 40-byte packet over LoRa.
+8. Put the LoRa radio to sleep and enter deep sleep.
 
-### Install Reticulum:
-```bash
-pip install rns
-```
+## Packet Format
 
-### Configure `reticulum.conf` (typically in `~/.reticulum/config` or `/etc/reticulum/config`):
-
-```ini
-[lxmf]
-lxmf = true
-
-[interfaces]
-
-[[My LoRa Modem]]
-type = LoRaInterface
-enabled = yes
-port = /dev/ttyUSB0
-speed = 115200
-frequency = 915000000
-bandwidth = 125000
-spreading_factor = 7
-coding_rate = 5
-# output_power = 17  # Optional, set legally
-```
-
-- **Restart Reticulum**: `sudo systemctl restart reticulum` or `rnsd -d`.
-
----
-
-## 7. Receiving Data
-
-- Run `examples/python_receiver/receiver.py`.
-
-### Example:
-```bash
-python receiver.py --app_name your_tracker_dest_name [--log_file path/to/your.csv]
-```
-
-- Output appears on console and logs to `asset_tracker_log.csv`.
-
----
-
-## How it Works
-
-1. **Boot & Config Check**: Initializes Watchdog Timer, waits for `config` input.
-2. **Peripheral Power-Up**: Enables peripherals (GPS via VEXT).
-3. **Battery Check**: Reads and stores voltage.
-4. **LoRa & Reticulum Init**: Sets up LoRa, Reticulum stack, and destination identity.
-5. **GPS Acquisition**:
-   - Acquires GPS fix (min. 3 satellites, valid HDOP).
-   - Stores Last Known Location (LKL) if fix is obtained.
-6. **Data Transmission**:
-   - Sends asset data via LXMF message.
-7. **Sleep**:
-   - Disables peripherals, enters deep sleep with radios off.
-
----
-
-## AssetData Payload Structure (40 bytes)
+The current firmware writes a canonical 40-byte little-endian payload instead
+of sending the raw in-memory C struct. This avoids compiler-padding problems.
 
 | Field | Type | Description |
-|---|---|---|
-| latitude | double | Degrees |
-| longitude | double | Degrees |
-| altitude | float | Meters |
-| gps_time | uint32_t | UTC HHMMSSCC |
-| gps_date | uint32_t | UTC DDMMYY |
-| satellites | uint8_t | Number used |
-| hdop | float | Horizontal Dilution |
-| battery_voltage | float | Volts |
-| fix_status | uint8_t | 0=No Fix, 1=Fix, 2=LKL |
-| firmware_version_major | uint8_t | Major ver |
-| firmware_version_minor | uint8_t | Minor ver |
+| --- | --- | --- |
+| `latitude` | `double` | Degrees |
+| `longitude` | `double` | Degrees |
+| `altitude` | `float` | Meters |
+| `gps_time` | `uint32_t` | UTC `HHMMSSCC` |
+| `gps_date` | `uint32_t` | UTC `DDMMYY` |
+| `satellites` | `uint8_t` | Number of satellites used |
+| `hdop` | `float` | Horizontal dilution of precision |
+| `battery_voltage` | `float` | Estimated battery voltage |
+| `fix_status` | `uint8_t` | `0 = no fix`, `1 = new fix`, `2 = last known location` |
+| `firmware_version_major` | `uint8_t` | Firmware major version |
+| `firmware_version_minor` | `uint8_t` | Firmware minor version |
 
----
+The example Python parser also accepts the older 44-byte legacy packet layout
+that came from sending the raw struct directly.
 
-## Status LED Indications (GPIO25)
+## Example Receiver and Test Workflow
 
-- **Solid ON**: Boot, init, transmit.
-- **Slow Blink (1s)**: Serial config mode.
-- **Fast Blink (0.25s)**: GPS fix in progress.
-- **3 Short Blinks**: Success.
-- **Fast Blink (Error)**:
-  - `LORA`: Init failure.
-  - `GPS`: Fix failure.
-- **OFF**: Sleeping or idle.
+The example Python tool in `examples/python_receiver/receiver.py` does not
+listen to LoRa hardware by itself. It parses a raw binary payload from disk and
+logs it to CSV.
 
----
+The bundled `examples/python_receiver/requirements.txt` has no mandatory
+dependencies for this offline parser.
+
+Generate and parse a test payload:
+
+```bash
+python tools/generate_test_payload.py
+python examples/python_receiver/receiver.py \
+  --input-file test_payload.bin \
+  --log-file asset_tracker_log.csv \
+  --verbose
+```
+
+If you want live reception, use a separate LoRa capture tool or radio bridge to
+save raw payloads, then pass those payloads to the parser.
+
+## Optional Reticulum Integration
+
+Reticulum support is intentionally off by default.
+
+To experiment with it:
+
+1. Install a compatible ESP32 or Arduino Reticulum port.
+2. Set `USE_RETICULUM` to `1` in
+   `src/Akita_Heltec_Reticulum_Tracker/Akita_Heltec_Reticulum_Tracker.cpp`.
+3. Adapt `initializeReticulum()` in the same file to your port's API.
+4. Optionally use `src/reticulum_lora_adapter.h` as a guarded template for LoRa interface registration.
+
+Notes:
+
+- No official Reticulum Arduino port is vendored here.
+- The default firmware path remains direct LoRa even when the template code is present.
+- If you need production Reticulum routing, identity management, or LXMF behavior,
+  expect to do port-specific integration work.
+
+## Platform Notes
+
+- The maintained path is the Arduino core on ESP32. The current project does
+  not require an ESP-IDF migration for normal operation.
+- ESP-IDF only becomes attractive if you need lower-level power tuning, native
+  driver work beyond the Arduino stack, OTA infrastructure, or a custom radio
+  abstraction outside the current LoRa library.
+- Non-ESP32 builds are supported at compile time, but deep sleep and power
+  control are intentionally conservative stubs there.
+
+## Status LED Behavior
+
+- Solid on: boot, initialization, or transmission in progress.
+- Slow blink: serial configuration mode.
+- Fast blink: GPS acquisition.
+- Short success blink phase: packet transmitted successfully.
+- Fast error blink: LoRa or GPS failure.
+- Off: idle or sleeping.
 
 ## Troubleshooting
 
-- **No Serial Output**: Confirm `115200` baud, cable, COM port, reset.
-- **LoRa Init Failed**:
-  - Antenna connected?
-  - Correct pins/frequency?
-- **Can't Enter Config Mode**:
-  - Type `config` within 10s post-reset.
-- **GPS Issues**:
-  - Antenna & sky visibility.
-  - VEXT usage validated?
-  - GPS pins and baud rate correct?
+- No serial output:
+  - Confirm `115200` baud.
+  - Check the cable, board selection, and serial port.
+- LoRa initialization fails:
+  - Confirm antenna is attached.
+  - Confirm pins and configured frequency match your hardware.
+- GPS never fixes:
+  - Verify `GPS_RX` and `GPS_TX` match your board.
+  - Verify VEXT control matches your GPS power wiring.
+  - Test with clear sky visibility.
+- Battery voltage looks wrong:
+  - Confirm `BATT_ADC_GPIO` matches the real battery divider input.
+  - Calibrate `BATT_VOLTAGE_MULTIPLIER` against a multimeter.
+- Python receiver fails to parse a payload:
+  - Confirm the file contains exactly one raw packet.
+  - Confirm the payload is either 40 bytes or the older 44-byte legacy format.
 
+## Additional Documentation
 
-## Akita Engineering
+- [deployment.md](deployment.md): deployment and verification checklist.
+- [USE_CASES.md](USE_CASES.md): recommended scenarios and configuration guidance.
 
-Akita Engineering specializes in custom embedded systems and IoT solutions. Contact us at akitaengineering.com.
+## License
 
-## Contributing
-
-Contributions are welcome. Please submit pull requests or issues.
+GPLv3.

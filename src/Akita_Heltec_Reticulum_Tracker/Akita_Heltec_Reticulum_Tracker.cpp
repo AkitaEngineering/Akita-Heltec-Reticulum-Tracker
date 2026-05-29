@@ -3,6 +3,7 @@
 #include <HardwareSerial.h>
 #include <SPI.h>
 #include <LoRa.h>
+#include <string.h>
 
 #include "types.h"
 
@@ -24,7 +25,7 @@
   #include "esp_wifi.h" // For disabling Wi-Fi
   #include <WiFi.h>
   #include <esp_bt.h>   // For disabling Bluetooth
-  #include <driver/adc.h> // For battery voltage
+  #include <esp_adc/adc_oneshot.h> // For battery voltage
   #include <esp_task_wdt.h> // For Watchdog Timer
 #else
   // Non-ESP32 platforms (nRF52840 / RAK4631): provide simple fallbacks so the
@@ -38,6 +39,7 @@
     unsigned int getUInt(const char*, unsigned int def) { return def; }
     unsigned long long getULong64(const char*, unsigned long long def) { return def; }
     void getString(const char*, char* out, size_t len) { if(len>0) out[0]='\0'; }
+    String getString(const char*, const String& def) { return def; }
     bool getBool(const char*, bool def) { return def; }
     void putUInt(const char*, unsigned int) {}
     void putULong64(const char*, unsigned long long) {}
@@ -75,6 +77,8 @@
   #define LORA_IRQ 2
 
   #define STATUS_LED LED_BUILTIN
+  #define GPS_RX 8
+  #define GPS_TX 9
   // Many nRF-based boards use a simple analogRead() pin number for battery
   // measurement; set a reasonable default but encourage users to verify.
   #define BATT_ADC_PIN A0
@@ -91,12 +95,14 @@
 
   // GPS & Status LED
   #define STATUS_LED 25 // Heltec Wireless Tracker V1.1 blue LED
+  #define GPS_RX 16     // Preserved from the prior Arduino implementation; override if needed for your board variant.
+  #define GPS_TX 17
   #define VEXT_CTRL 21  // GPIO to control power for external peripherals (like GPS)
                         // Verify if your GPS is on this rail for your board version!
                         // Heltec Vext is often LOW to enable power, HIGH to disable.
 
-  // Battery ADC Pin (Heltec Wireless Tracker typically uses ADC1_CH5 (GPIO13) with a voltage divider)
-  #define BATT_ADC_PIN ADC1_CHANNEL_5 // GPIO13. Check your board's schematic.
+  // Battery ADC GPIO (oneshot API resolves the correct ADC unit/channel for the target)
+  #define BATT_ADC_GPIO 13 // Check your board's schematic.
   #define BATT_VOLTAGE_MULTIPLIER 2.0f // Adjust based on your voltage divider and calibration
 #endif
 // Voltage divider parameters - calibrate these for your board.
@@ -159,6 +165,41 @@ struct AssetData {
   uint8_t firmware_version_minor;
 };
 
+static const size_t ASSET_DATA_PACKET_SIZE =
+  sizeof(double) + sizeof(double) + sizeof(float) + sizeof(uint32_t) +
+  sizeof(uint32_t) + sizeof(uint8_t) + sizeof(float) + sizeof(float) +
+  sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t);
+
+static_assert(sizeof(double) == 8, "AssetData packet assumes 64-bit IEEE doubles");
+static_assert(sizeof(float) == 4, "AssetData packet assumes 32-bit IEEE floats");
+static_assert(ASSET_DATA_PACKET_SIZE == 40, "AssetData packet size must remain 40 bytes");
+
+template <typename T>
+static void writePacketField(uint8_t*& cursor, const T& value) {
+  memcpy(cursor, &value, sizeof(T));
+  cursor += sizeof(T);
+}
+
+static size_t serializeAssetData(const AssetData& data, uint8_t* buffer, size_t bufferSize) {
+  if (buffer == nullptr || bufferSize < ASSET_DATA_PACKET_SIZE) {
+    return 0;
+  }
+
+  uint8_t* cursor = buffer;
+  writePacketField(cursor, data.latitude);
+  writePacketField(cursor, data.longitude);
+  writePacketField(cursor, data.altitude);
+  writePacketField(cursor, data.gps_time);
+  writePacketField(cursor, data.gps_date);
+  writePacketField(cursor, data.satellites);
+  writePacketField(cursor, data.hdop);
+  writePacketField(cursor, data.battery_voltage);
+  writePacketField(cursor, data.fix_status);
+  writePacketField(cursor, data.firmware_version_major);
+  writePacketField(cursor, data.firmware_version_minor);
+  return static_cast<size_t>(cursor - buffer);
+}
+
 // Store LKL after the full struct definition
 AssetData lastKnownLocation;
 
@@ -199,20 +240,58 @@ void controlPeripherals(bool enable) {
 }
 
 float readBatteryVoltage() {
-    #ifdef BATT_ADC_PIN
-      #if defined(ESP32)
-        // Configure ADC - ESP32 ADC can be tricky, this is a basic implementation
-        adc1_config_width(ADC_WIDTH_BIT_12); // 0-4095
-        adc1_config_channel_atten(BATT_ADC_PIN, ADC_ATTEN_DB_11);
+    #if defined(ESP32)
+      #ifdef BATT_ADC_GPIO
+        adc_unit_t adcUnit = ADC_UNIT_1;
+        adc_channel_t adcChannel = ADC_CHANNEL_0;
+        esp_err_t adcResult = adc_oneshot_io_to_channel(BATT_ADC_GPIO, &adcUnit, &adcChannel);
+        if (adcResult != ESP_OK) {
+          Serial.print("Battery ADC GPIO is not valid for this ESP32 target: "); Serial.println(BATT_ADC_GPIO);
+          return 0.0f;
+        }
 
-        // For better accuracy, take multiple readings and average
+        adc_oneshot_unit_handle_t adcHandle = nullptr;
+        adc_oneshot_unit_init_cfg_t initConfig = {};
+        initConfig.unit_id = adcUnit;
+        initConfig.ulp_mode = ADC_ULP_MODE_DISABLE;
+
+        adcResult = adc_oneshot_new_unit(&initConfig, &adcHandle);
+        if (adcResult != ESP_OK) {
+          Serial.print("Failed to initialize ADC oneshot unit: "); Serial.println((int)adcResult);
+          return 0.0f;
+        }
+
+        adc_oneshot_chan_cfg_t channelConfig = {};
+        channelConfig.atten = ADC_ATTEN_DB_12;
+        channelConfig.bitwidth = ADC_BITWIDTH_12;
+
+        adcResult = adc_oneshot_config_channel(adcHandle, adcChannel, &channelConfig);
+        if (adcResult != ESP_OK) {
+          Serial.print("Failed to configure battery ADC channel: "); Serial.println((int)adcResult);
+          adc_oneshot_del_unit(adcHandle);
+          return 0.0f;
+        }
+
         int num_readings = 10;
         uint32_t adc_raw_sum = 0;
+        int successful_readings = 0;
         for (int i = 0; i < num_readings; i++) {
-            adc_raw_sum += adc1_get_raw(BATT_ADC_PIN);
-            delay(1); // Small delay between readings
+          int adcRaw = 0;
+          adcResult = adc_oneshot_read(adcHandle, adcChannel, &adcRaw);
+          if (adcResult == ESP_OK) {
+            adc_raw_sum += adcRaw;
+            successful_readings++;
+          }
+          delay(1); // Small delay between readings
         }
-        int adc_raw = adc_raw_sum / num_readings;
+        adc_oneshot_del_unit(adcHandle);
+
+        if (successful_readings == 0) {
+          Serial.println("Battery ADC read failed.");
+          return 0.0f;
+        }
+
+        int adc_raw = adc_raw_sum / successful_readings;
         float voltage_at_adc = (float)adc_raw / 4095.0f * ADC_REFERENCE_VOLTAGE;
         float battery_volts = voltage_at_adc * BATT_VOLTAGE_MULTIPLIER;
         Serial.print("Avg Raw ADC: "); Serial.print(adc_raw);
@@ -220,6 +299,10 @@ float readBatteryVoltage() {
         Serial.print("V, Est. Battery Voltage: "); Serial.print(battery_volts, 2); Serial.println("V");
         return battery_volts;
       #else
+        return 0.0f; // No battery GPIO defined
+      #endif
+    #else
+      #ifdef BATT_ADC_PIN
         // Generic analogRead-based measurement for non-ESP platforms
         // analogRead resolution varies by core; read once or average a few samples
         int num_readings = 5;
@@ -234,9 +317,9 @@ float readBatteryVoltage() {
         Serial.print(", ADC Voltage: "); Serial.print(voltage_at_adc, 3);
         Serial.print("V, Est. Battery Voltage: "); Serial.print(battery_volts, 2); Serial.println("V");
         return battery_volts;
+      #else
+        return 0.0f; // No battery pin defined
       #endif
-    #else
-      return 0.0f; // No battery pin defined
     #endif
 }
 
@@ -245,7 +328,11 @@ void configureFromNVS() {
   preferences.begin("tracker_cfg", true); // Read-only mode
   sleepTimeSeconds = preferences.getUInt("sleep", sleepTimeSeconds);
   loraFrequency = preferences.getULong64("loraFreq", loraFrequency);
-  preferences.getString("destName", reticulumDestName, sizeof(reticulumDestName));
+  String storedDestName = preferences.getString("destName", String(reticulumDestName));
+  storedDestName.trim();
+  if (storedDestName.length() > 0) {
+    storedDestName.toCharArray(reticulumDestName, sizeof(reticulumDestName));
+  }
   sendLKLonFail = preferences.getBool("sendLKL", sendLKLonFail);
   preferences.end();
 
@@ -453,7 +540,13 @@ void performTrackingAction() {
   // 3. Acquire GPS Data
   Serial.println("Acquiring GPS fix (timeout: " + String(GPS_FIX_TIMEOUT_MS / 1000) + "s)...");
   // GPS is assumed to be powered on by controlPeripherals(true)
-  gpsSerial.begin(GPS_BAUD); // Open GPS serial port (UART1)
+  #if defined(ESP32)
+  Serial.print("Starting GPS UART on RX="); Serial.print(GPS_RX);
+  Serial.print(", TX="); Serial.println(GPS_TX);
+  gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
+  #else
+  gpsSerial.begin(GPS_BAUD);
+  #endif
   setLed(AKITA_LED_BLINK_GPS);
   unsigned long gpsStartTime = millis();
     bool newGpsFixObtained = false;
@@ -550,14 +643,32 @@ void performTrackingAction() {
     Serial.print("  FixStatus: "); Serial.println(dataToSend.fix_status);
     Serial.print("  FW Ver: "); Serial.print(dataToSend.firmware_version_major); Serial.print("."); Serial.println(dataToSend.firmware_version_minor);
 
-    setLed(AKITA_LED_ON); // Solid LED during LoRa transmission
-    // Send the data via LoRa
-    LoRa.beginPacket();
-    LoRa.write((uint8_t*)&dataToSend, sizeof(AssetData));
-    LoRa.endPacket();
+    uint8_t payload[ASSET_DATA_PACKET_SIZE];
+    size_t payloadSize = serializeAssetData(dataToSend, payload, sizeof(payload));
 
-    Serial.println("Data sent successfully via LoRa.");
-    setLed(AKITA_LED_BLINK_SUCCESS);
+    if (payloadSize != ASSET_DATA_PACKET_SIZE) {
+      Serial.println("Failed to serialize payload.");
+      setLed(AKITA_LED_BLINK_ERROR_LORA);
+    } else {
+      setLed(AKITA_LED_ON); // Solid LED during LoRa transmission
+      LoRa.beginPacket();
+      size_t bytesWritten = LoRa.write(payload, payloadSize);
+      int packetStatus = LoRa.endPacket();
+
+      if (bytesWritten != payloadSize || packetStatus == 0) {
+        Serial.println("LoRa transmission failed.");
+        setLed(AKITA_LED_BLINK_ERROR_LORA);
+      } else {
+        Serial.print("Data sent successfully via LoRa ("); Serial.print(payloadSize); Serial.println(" bytes).");
+        setLed(AKITA_LED_BLINK_SUCCESS);
+        unsigned long successBlinkStart = millis();
+        while (millis() - successBlinkStart < 600) {
+          updateLed();
+          esp_task_wdt_reset();
+          delay(25);
+        }
+      }
+    }
   }
 
   // 5. Cleanup Reticulum objects (if dynamically allocated and need explicit release before sleep)
@@ -630,9 +741,20 @@ void app_setup() {
   // Newer ESP32 cores expect esp_task_wdt_init(const esp_task_wdt_config_t*).
   // Only call WDT init/add on ESP32 targets; non-ESP builds have no-op stubs.
 #if defined(ESP32)
-  esp_task_wdt_init(NULL);
-  esp_task_wdt_add(NULL); // Register current task (setup/loop) with WDT
-  esp_task_wdt_reset();   // Pet the dog immediately
+  esp_task_wdt_config_t wdtConfig = {
+    .timeout_ms = WDT_TIMEOUT_S * 1000U,
+    .idle_core_mask = 0,
+    .trigger_panic = true,
+  };
+  esp_err_t wdtInitResult = esp_task_wdt_init(&wdtConfig);
+  if (wdtInitResult != ESP_OK && wdtInitResult != ESP_ERR_INVALID_STATE) {
+    Serial.print("Failed to initialize watchdog timer: "); Serial.println((int)wdtInitResult);
+  }
+  esp_err_t wdtAddResult = esp_task_wdt_add(NULL); // Register current task (setup/loop) with WDT
+  if (wdtAddResult != ESP_OK && wdtAddResult != ESP_ERR_INVALID_STATE) {
+    Serial.print("Failed to register watchdog task: "); Serial.println((int)wdtAddResult);
+  }
+  esp_task_wdt_reset(); // Pet the dog immediately
 #endif
 
   // Check for configuration command via Serial
@@ -726,7 +848,6 @@ void updateLed() {
   // where blinking behavior is desired.
   unsigned long currentTime = millis();
   long intervalOn = 0;
-  long intervalOff = 0; // Not used in current simple blink, but could be for complex patterns
 
   switch (currentLedState) {
     case AKITA_LED_BLINK_SLOW: // Config mode
